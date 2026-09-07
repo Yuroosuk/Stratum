@@ -13,5 +13,5 @@ sos:
 
 clean:
 	$(MAKE) -C score clean
-	$(MAKE) -C shal clean
-	$(MAKE) -C sos clean
+	@if [ -f shal/Makefile ]; then $(MAKE) -C shal clean; fi
+	@if [ -f sos/Makefile ]; then $(MAKE) -C sos clean; fi
