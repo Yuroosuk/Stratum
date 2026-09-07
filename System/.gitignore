@@ -1,0 +1,8 @@
+build/
+*.o
+*.a
+*.d
+score/score
+*.bin
+*.elf
+*.log
