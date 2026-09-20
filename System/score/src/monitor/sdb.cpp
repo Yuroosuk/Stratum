@@ -5,9 +5,12 @@
 
 #include "cpu.h"
 #include "memory.h"
+#include "expr.h"
+#include "watchpoint.h"
 
 struct Command{
     const char* name;
+    const char* form;
     const char* desc;
     void (*handler)(const char* args);
 };
@@ -16,13 +19,19 @@ static void cmd_si(const char* args);
 static void cmd_info(const char* args);
 static void cmd_x(const char* args);
 static void cmd_help(const char* args);
+static void cmd_p(const char* args);
+static void cmd_w(const char* args);
+static void cmd_d(const char* args);
 
 //Command table
 static Command cmd_table[] ={
-    {"si"  , "Single step execute N instructions (default 1)", cmd_si},
-    {"info", "Show register information"                     , cmd_info},
-    {"x"   , "Examine memory"                                , cmd_x},
-    {"help", "Show this help message"                        , cmd_help},
+    {"si"  , "si N"                , "Single step execute N instructions (default 1)."        , cmd_si},
+    {"info", "info r/<reg_name>/w" , "Show the information of register or the watchpoint pool.", cmd_info},
+    {"x"   , "x N ADDR"            , "Examine memory."                                         , cmd_x},
+    {"help", "help"                , "Show this help message."                                 , cmd_help},
+    {"p"   , "p EXPR"              , "compute the expression and display."                     , cmd_p},
+    {"w"   , "w EXPR"              , "set watchpoint."                                         , cmd_w},
+    {"d"   , "d N"                 , "delete the watchpoint id as N."                          , cmd_d},
 };
 static size_t cmd_table_size = sizeof(cmd_table) / sizeof(cmd_table[0]);
 
@@ -33,7 +42,7 @@ static size_t cmd_table_size = sizeof(cmd_table) / sizeof(cmd_table[0]);
 //single step run n commands
 static void cmd_si(const char* args)
 {
-    int n;
+    int n = 1;
     if(args && args[0] !='\0')
     {
         n = atoi(args);
@@ -48,8 +57,9 @@ static void cmd_info(const char* args)
 {
     if(!args || args[0] == '\0')
     {
-        printf("Usage: info r          - show all registers\n");
-        printf("       info <reg_name> - show a single register\n");
+        printf("[ERROR] Usage: info r          - show all registers\n");
+        printf("               info <reg_name> - show a single register\n");
+        printf("               info w - show the watchpoint pool\n");
         return;
     }
 
@@ -62,6 +72,11 @@ static void cmd_info(const char* args)
         }
 
         printf("pc  : 0x%08x\n", cpu.pc);
+        return;
+    }
+    else if(strcmp(args, "w") == 0)
+    {
+        wp_print_all();
         return;
     }
 
@@ -85,14 +100,14 @@ static void cmd_info(const char* args)
 
 //    cmd_x(args)    → 查看内存（从 args 解析出 N 和 ADDR）
 //查看内存（从 args 解析出 N 和 ADDR）
-void cmd_x(const char* args)
+static void cmd_x(const char* args)
 {
     int n = 0;
     uint32_t addr = 0;
 
     if(sscanf(args, "%d %x", &n, &addr) != 2)
     {
-        printf("Usage: x N ADDR (e.g., x 10 0x80000000)\n");
+        printf("[ERROR] Usage: x N ADDR (e.g., x 10 0x80000000)\n");
         return;
     }
 
@@ -112,18 +127,60 @@ void cmd_x(const char* args)
 }
 
 // Get information of commands
-void cmd_help(const char* args)
+static void cmd_help(const char* args)
 {
     (void)args;
 
     printf("Stratum Debugger (SDB) commands:\n");
-
-    extern Command cmd_table[];
-    extern size_t cmd_table_size;
-
     for(size_t i=0;i < cmd_table_size; i++)
     {
-        printf("  %-8s - %s\n", cmd_table[i].name, cmd_table[i].desc);
+        printf("  %-5s - %-20s - %s\n", cmd_table[i].name, cmd_table[i].form, cmd_table[i].desc);
+    }
+}
+
+static void cmd_p(const char* args)
+{
+    if(!args || args[0] == '\0')
+    {
+        printf("[ERROR] Usage: p EXPR\n");
+        return;
+    }
+    bool ok = false;
+    uint32_t result = expr_eval(args,&ok);
+    if(ok)
+    {
+        printf("= 0x%08x  (%u)\n",result,result);
+    }
+}
+
+static void cmd_w(const char* args)
+{
+    if(!args || args[0] == '\0')
+    {
+        printf("[ERROR] Usage: w EXPR\n");
+        return;
+    }
+    int id = wp_add(args);
+    if(id > 0) printf("Watchpoint %d: [%s] created.\n", id, args);
+    else printf("Failed to create watchpoint.\n");
+}
+
+static void cmd_d(const char* args)
+{
+    if(!args || args[0] == '\0')
+    {
+        printf("[ERROR] Usage: d N\n");
+        return;
+    }
+    int id = atoi(args);
+    bool ok = wp_delete(id);
+    if(ok)
+    {
+        printf("Watchpoint %d Delete succeed.\n",id);
+    }
+    else
+    {
+        printf("Can't find watch point ID:%d.\n",id);
     }
 }
 
