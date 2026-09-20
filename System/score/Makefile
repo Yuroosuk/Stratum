@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 CXX      := g++
 CXXFLAGS := -std=c++17 -Wall -Wextra -g
 LDFLAGS := -lreadline -lncurses
